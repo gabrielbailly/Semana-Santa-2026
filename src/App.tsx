@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Component, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Trophy, 
@@ -12,9 +12,52 @@ import {
   XCircle,
   BarChart3,
   Volume2,
-  VolumeX
+  VolumeX,
+  Share2
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { QUESTIONS, Question, Score } from './types';
+import { db, auth } from './firebase';
+import { collection, addDoc, query, orderBy, limit, onSnapshot, getDocFromServer, doc } from 'firebase/firestore';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+
+// --- Firebase Error Handling ---
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 const DIFFICULTY_COLORS = {
   fácil: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -37,23 +80,86 @@ export default function App() {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [leaderboard, setLeaderboard] = useState<Score[]>([]);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [timeLeft, setTimeLeft] = useState(5);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    fetchLeaderboard();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        signInAnonymously(auth).catch((error) => {
+          if (error.code === 'auth/admin-restricted-operation') {
+            console.error(
+              "CRITICAL: Anonymous Authentication is disabled or User Sign-up is restricted in your Firebase Console. " +
+              "Please go to Authentication > Settings > User actions and ensure 'Allow users to sign up' is checked, " +
+              "and Authentication > Sign-in method to enable 'Anonymous'."
+            );
+          } else {
+            console.error("Auth error:", error);
+          }
+        });
+      }
+      setIsAuthReady(true);
+    });
+
+    // Test connection
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    };
+    testConnection();
+
+    return () => unsubscribe();
   }, []);
 
-  const fetchLeaderboard = async () => {
-    try {
-      const res = await fetch('/api/scores');
-      const data = await res.json();
-      setLeaderboard(data);
-    } catch (error) {
-      console.error('Error fetching leaderboard:', error);
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    const q = query(collection(db, 'scores'), orderBy('score', 'desc'), limit(10));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const scores = snapshot.docs.map(doc => ({
+        id: doc.id as any,
+        ...doc.data()
+      })) as Score[];
+      setLeaderboard(scores);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'scores');
+    });
+
+    return () => unsubscribe();
+  }, [isAuthReady]);
+
+  useEffect(() => {
+    if (view !== 'quiz' || isAnswered) return;
+
+    if (timeLeft === 0) {
+      handleAnswer(-1);
+      return;
     }
+
+    const timer = setInterval(() => {
+      setTimeLeft(prev => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [view, timeLeft, isAnswered]);
+
+  useEffect(() => {
+    if (view === 'quiz') {
+      setTimeLeft(5);
+    }
+  }, [currentQuestionIndex, view]);
+
+  const fetchLeaderboard = async () => {
+    // Handled by onSnapshot
   };
 
   const playSound = (type: keyof typeof SOUNDS) => {
@@ -95,6 +201,18 @@ export default function App() {
       setIsAnswered(false);
     } else {
       playSound('complete');
+      
+      // Trigger confetti if score is high (e.g., more than 70% correct)
+      const percentage = (score / (filteredQuestions.length * 10)) * 100;
+      if (score >= filteredQuestions.length * 7) {
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#9333ea', '#c026d3', '#7c3aed', '#ffffff']
+        });
+      }
+      
       setView('result');
     }
   };
@@ -102,15 +220,37 @@ export default function App() {
   const saveScore = async () => {
     if (!playerName.trim()) return;
     try {
-      await fetch('/api/scores', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: playerName, score, difficulty }),
-      });
-      fetchLeaderboard();
+      const scoreData = {
+        name: playerName,
+        score,
+        difficulty,
+        date: new Date().toISOString()
+      };
+      await addDoc(collection(db, 'scores'), scoreData);
       setView('leaderboard');
     } catch (error) {
-      console.error('Error saving score:', error);
+      handleFirestoreError(error, OperationType.CREATE, 'scores');
+    }
+  };
+
+  const handleShare = async () => {
+    const text = `¡He conseguido ${score} puntos en el nivel ${difficulty} de la Trivia de Semana Santa! ¿Te atreves a superarme? 🕊️✨`;
+    const url = window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Trivia de Semana Santa',
+          text: text,
+          url: url,
+        });
+      } catch (error) {
+        console.error('Error sharing:', error);
+      }
+    } else {
+      // Fallback: Copy to clipboard or open Twitter
+      const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+      window.open(twitterUrl, '_blank');
     }
   };
 
@@ -137,9 +277,13 @@ export default function App() {
               exit={{ opacity: 0, y: -20 }}
               className="text-center space-y-8"
             >
-              <div className="relative inline-block">
-                <div className="absolute -inset-4 bg-purple-100 rounded-full blur-2xl opacity-50" />
-                <Trophy className="w-20 h-20 mx-auto text-purple-600 relative" />
+              <div className="relative inline-block w-full max-w-md mx-auto aspect-video rounded-2xl overflow-hidden shadow-xl border-4 border-white">
+                <img 
+                  src="https://lasfuentes-alcaste.com/ssta/portada.png" 
+                  alt="Semana Santa" 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
               </div>
               <div className="space-y-4">
                 <h1 className="text-4xl md:text-6xl font-serif italic text-slate-900">
@@ -215,12 +359,23 @@ export default function App() {
               className="space-y-8"
             >
               <div className="flex justify-between items-center">
-                <div className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider">
-                  Pregunta {currentQuestionIndex + 1} / {filteredQuestions.length}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                    Pregunta {currentQuestionIndex + 1} / {filteredQuestions.length}
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border ${DIFFICULTY_COLORS[difficulty]}`}>
+                    {difficulty}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-purple-600 font-bold">
-                  <Award className="w-5 h-5" />
-                  {score} pts
+                <div className="flex items-center gap-4">
+                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-colors ${timeLeft <= 3 ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                    <Clock className="w-4 h-4" />
+                    <span className="font-mono font-bold">{timeLeft}s</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-purple-600 font-bold">
+                    <Award className="w-5 h-5" />
+                    {score} pts
+                  </div>
                 </div>
               </div>
 
@@ -233,6 +388,16 @@ export default function App() {
               </div>
 
               <div className="space-y-6">
+                {filteredQuestions[currentQuestionIndex].image && (
+                  <div className="w-full aspect-video rounded-2xl overflow-hidden shadow-md border-4 border-white">
+                    <img 
+                      src={filteredQuestions[currentQuestionIndex].image} 
+                      alt="Pregunta" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
                 <h2 className="text-2xl md:text-3xl font-serif leading-tight">
                   {filteredQuestions[currentQuestionIndex].text}
                 </h2>
@@ -265,6 +430,16 @@ export default function App() {
                   })}
                 </div>
               </div>
+
+              {isAnswered && selectedOption === -1 && (
+                <motion.p 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center text-rose-600 font-bold"
+                >
+                  ¡Se acabó el tiempo!
+                </motion.p>
+              )}
 
               {isAnswered && (
                 <motion.button
@@ -310,6 +485,12 @@ export default function App() {
                   className="w-full py-4 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50 transition-all"
                 >
                   Guardar Puntuación
+                </button>
+                <button
+                  onClick={handleShare}
+                  className="w-full py-4 bg-sky-500 text-white rounded-xl font-bold hover:bg-sky-600 transition-all flex items-center justify-center gap-2"
+                >
+                  <Share2 className="w-5 h-5" /> Compartir Resultado
                 </button>
                 <button
                   onClick={() => setView('difficulty')}

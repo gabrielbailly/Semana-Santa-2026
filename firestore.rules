@@ -1,0 +1,64 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: scores
+// Document ID: auto-generated
+// Fields:
+//   - name: string (required, 1-20 chars) - Player's name
+//   - score: number (required, positive) - Points earned
+//   - difficulty: string (required, enum: fácil, medio, difícil) - Level
+//   - date: string (required, ISO 8601 format) - Achievement date
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "gbailly@alcaste-lasfuentes.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidScore(data) {
+      return data.keys().hasAll(['name', 'score', 'difficulty', 'date']) &&
+             data.keys().hasOnly(['name', 'score', 'difficulty', 'date']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 20 &&
+             data.score is int && data.score >= 0 &&
+             data.difficulty in ['fácil', 'medio', 'difícil'] &&
+             data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /scores/{scoreId} {
+      // Leaderboard is publicly readable
+      allow read: if true;
+      
+      // Anyone can submit a score, but it must be valid
+      // In a real app, we might want to restrict this to authenticated users
+      // but for a simple trivia, we'll allow public submission with strict validation
+      allow create: if isValidScore(request.resource.data);
+      
+      // Only admins can update or delete scores
+      allow update, delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+  }
+}

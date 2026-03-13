@@ -1,0 +1,35 @@
+{
+  "entities": {
+    "Score": {
+      "title": "Score",
+      "description": "A player's quiz score",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Player's name"
+        },
+        "score": {
+          "type": "integer",
+          "description": "Points earned"
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "Difficulty level played"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the score was achieved"
+        }
+      },
+      "required": ["name", "score", "difficulty", "date"]
+    }
+  },
+  "firestore": {
+    "/scores/{scoreId}": {
+      "schema": "Score",
+      "description": "Collection of quiz scores"
+    }
+  }
+}

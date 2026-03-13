@@ -7,27 +7,27 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "Player's name"
+          "description": "Player name"
         },
         "score": {
-          "type": "integer",
-          "description": "Points earned"
+          "type": "number",
+          "description": "Quiz score"
         },
         "difficulty": {
           "type": "string",
-          "description": "Difficulty level played"
+          "description": "Difficulty level"
         },
         "date": {
           "type": "string",
           "format": "date-time",
-          "description": "When the score was achieved"
+          "description": "ISO 8601 date string"
         }
       },
       "required": ["name", "score", "difficulty", "date"]
     }
   },
   "firestore": {
-    "/scores/{scoreId}": {
+    "scores": {
       "schema": "Score",
       "description": "Collection of quiz scores"
     }

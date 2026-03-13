@@ -13,7 +13,9 @@ import {
   BarChart3,
   Volume2,
   VolumeX,
-  Share2
+  Share2,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QUESTIONS, Question, Score } from './types';
@@ -81,6 +83,7 @@ export default function App() {
   const [isAnswered, setIsAnswered] = useState(false);
   const [leaderboard, setLeaderboard] = useState<Score[]>([]);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [authConfigError, setAuthConfigError] = useState(false);
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [timeLeft, setTimeLeft] = useState(5);
@@ -92,6 +95,7 @@ export default function App() {
       if (!user) {
         signInAnonymously(auth).catch((error) => {
           if (error.code === 'auth/admin-restricted-operation') {
+            setAuthConfigError(true);
             console.error(
               "CRITICAL: Anonymous Authentication is disabled or User Sign-up is restricted in your Firebase Console. " +
               "Please go to Authentication > Settings > User actions and ensure 'Allow users to sign up' is checked, " +
@@ -101,6 +105,8 @@ export default function App() {
             console.error("Auth error:", error);
           }
         });
+      } else {
+        setAuthConfigError(false);
       }
       setIsAuthReady(true);
     });
@@ -266,6 +272,31 @@ export default function App() {
           {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
         </button>
       </div>
+
+      {/* Auth Config Error Warning */}
+      {authConfigError && (
+        <div className="fixed bottom-0 left-0 right-0 bg-rose-600 text-white p-4 z-[100] shadow-2xl animate-in slide-in-from-bottom duration-500">
+          <div className="max-w-2xl mx-auto flex items-start gap-4">
+            <AlertCircle className="w-6 h-6 flex-shrink-0 mt-0.5" />
+            <div className="space-y-2">
+              <p className="font-bold">Acción requerida en Firebase Console</p>
+              <p className="text-sm opacity-90">
+                Para que el ranking funcione, debes habilitar el acceso en tu consola de Firebase:
+              </p>
+              <ol className="text-xs list-decimal list-inside space-y-1 opacity-80">
+                <li>Ve a <b>Authentication</b> &gt; <b>Sign-in method</b> y habilita <b>Anónimo</b>.</li>
+                <li>Ve a <b>Settings</b> &gt; <b>User actions</b> y marca <b>"Allow users to sign up"</b>.</li>
+              </ol>
+            </div>
+            <button 
+              onClick={() => window.location.reload()}
+              className="ml-auto bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-2xl mx-auto px-4 py-8 md:py-16">
         <AnimatePresence mode="wait">

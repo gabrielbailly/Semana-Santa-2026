@@ -86,7 +86,7 @@ export default function App() {
   const [authConfigError, setAuthConfigError] = useState(false);
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [timeLeft, setTimeLeft] = useState(5);
+  const [timeLeft, setTimeLeft] = useState(7);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -160,7 +160,7 @@ export default function App() {
 
   useEffect(() => {
     if (view === 'quiz') {
-      setTimeLeft(5);
+      setTimeLeft(7);
     }
   }, [currentQuestionIndex, view]);
 
@@ -308,20 +308,20 @@ export default function App() {
               exit={{ opacity: 0, y: -20 }}
               className="text-center space-y-8"
             >
-              <div className="relative inline-block w-full max-w-md mx-auto aspect-video rounded-2xl overflow-hidden shadow-xl border-4 border-white">
+              <div className="relative inline-block w-full max-w-md mx-auto aspect-video rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-slate-50">
                 <img 
-                  src="https://lasfuentes-alcaste.com/ssta/portada.png" 
+                  src="/portada.png" 
                   alt="Semana Santa" 
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                   referrerPolicy="no-referrer"
                 />
               </div>
               <div className="space-y-4">
                 <h1 className="text-4xl md:text-6xl font-serif italic text-slate-900">
-                  Trivia de Semana Santa
+                  Trivial de Semana Santa
                 </h1>
                 <p className="text-slate-500 max-w-md mx-auto">
-                  Pon a prueba tus conocimientos sobre las tradiciones, historia y curiosidades de la Semana Santa.
+                  Pon a prueba tus conocimientos sobre la Pasión, muerte y Resurrección de Jesús
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -419,6 +419,16 @@ export default function App() {
               </div>
 
               <div className="space-y-6">
+                {filteredQuestions[currentQuestionIndex].image && (
+                  <div className="w-full aspect-video rounded-2xl overflow-hidden shadow-md border-4 border-white bg-slate-200 flex items-center justify-center relative">
+                    <img 
+                      src={`/${filteredQuestions[currentQuestionIndex].image}`} 
+                      alt="Pregunta" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
                 <h2 className="text-2xl md:text-3xl font-serif leading-tight">
                   {filteredQuestions[currentQuestionIndex].text}
                 </h2>

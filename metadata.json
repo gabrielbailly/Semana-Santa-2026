@@ -1,5 +1,5 @@
 {
-  "name": "Trivia de Semana Santa",
-  "description": "Un concurso interactivo sobre las tradiciones y curiosidades de la Semana Santa con niveles de dificultad y tabla de clasificación.",
+  "name": "Trivial de Semana Santa",
+  "description": "Un concurso interactivo sobre Pasión, muerte y Resurrección de Jesús con niveles de dificultad y tabla de clasificación.",
   "requestFramePermissions": []
 }

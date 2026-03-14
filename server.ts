@@ -6,10 +6,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function startServer() {
+async function createServer() {
   const app = express();
-  const PORT = 3000;
-
+  
   app.use(express.json());
 
   // API routes
@@ -26,21 +25,30 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    // In production (Vercel/Cloud Run), serve from dist
     const distPath = path.resolve(__dirname, "dist");
-    const publicPath = path.resolve(__dirname, "public");
     
-    // Serve static files from dist (built assets) and public (fallback)
+    // Serve static files from dist
     app.use(express.static(distPath));
-    app.use(express.static(publicPath));
     
+    // Fallback for SPA
     app.get("*", (req, res) => {
       res.sendFile(path.resolve(distPath, "index.html"));
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  return app;
+}
+
+// For local development and Cloud Run
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  createServer().then(app => {
+    const PORT = 3000;
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
   });
 }
 
-startServer();
+// Export for Vercel
+export default createServer;

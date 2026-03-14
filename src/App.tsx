@@ -15,7 +15,8 @@ import {
   VolumeX,
   Share2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Image as ImageIcon
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QUESTIONS, Question, Score } from './types';
@@ -87,6 +88,31 @@ export default function App() {
   const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [timeLeft, setTimeLeft] = useState(7);
+
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const [imageVersions, setImageVersions] = useState<Record<string, number>>({});
+
+  const getImageUrl = (imagePath: string) => {
+    // Serving images locally from the public folder
+    return `/${imagePath}`;
+  };
+
+  const handleImageError = (imagePath: string) => {
+    console.error(`[Image Error] Failed to load: ${imagePath}`);
+    setImageErrors(prev => ({ ...prev, [imagePath]: true }));
+  };
+
+  const retryImage = (imagePath: string) => {
+    setImageErrors(prev => {
+      const newState = { ...prev };
+      delete newState[imagePath];
+      return newState;
+    });
+    setImageVersions(prev => ({
+      ...prev,
+      [imagePath]: (prev[imagePath] || 0) + 1
+    }));
+  };
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -308,13 +334,28 @@ export default function App() {
               exit={{ opacity: 0, y: -20 }}
               className="text-center space-y-8"
             >
-              <div className="relative inline-block w-full max-w-md mx-auto aspect-video rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-slate-50">
-                <img 
-                  src="/portada.png" 
-                  alt="Semana Santa" 
-                  className="w-full h-full object-contain"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="relative inline-block w-full max-w-md mx-auto aspect-video rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-slate-100 flex items-center justify-center">
+                {imageErrors['portada.png'] ? (
+                  <div className="text-slate-400 text-sm flex flex-col items-center gap-3">
+                    <ImageIcon className="w-8 h-8 opacity-20" />
+                    <span>Imagen no disponible</span>
+                    <button 
+                      onClick={() => retryImage('portada.png')}
+                      className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-full text-xs transition-colors flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Reintentar
+                    </button>
+                  </div>
+                ) : (
+                  <img 
+                    key="portada"
+                    src={getImageUrl("portada.png")} 
+                    alt="Semana Santa" 
+                    className="w-full h-full object-contain block"
+                    onError={() => handleImageError('portada.png')}
+                  />
+                )}
               </div>
               <div className="space-y-4">
                 <h1 className="text-4xl md:text-6xl font-serif italic text-slate-900">
@@ -420,13 +461,28 @@ export default function App() {
 
               <div className="space-y-6">
                 {filteredQuestions[currentQuestionIndex].image && (
-                  <div className="w-full aspect-video rounded-2xl overflow-hidden shadow-md border-4 border-white bg-slate-200 flex items-center justify-center relative">
-                    <img 
-                      src={filteredQuestions[currentQuestionIndex].image} 
-                      alt="Pregunta" 
-                      className="w-full h-full object-contain"
-                      referrerPolicy="no-referrer"
-                    />
+                  <div className="w-full aspect-video rounded-2xl overflow-hidden shadow-md border-4 border-white bg-slate-100 flex items-center justify-center relative">
+                    {imageErrors[filteredQuestions[currentQuestionIndex].image] ? (
+                      <div className="text-slate-400 text-sm flex flex-col items-center gap-3">
+                        <ImageIcon className="w-8 h-8 opacity-20" />
+                        <span>Imagen no disponible</span>
+                        <button 
+                          onClick={() => retryImage(filteredQuestions[currentQuestionIndex].image!)}
+                          className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-full text-xs transition-colors flex items-center gap-1"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Reintentar
+                        </button>
+                      </div>
+                    ) : (
+                      <img 
+                        key={filteredQuestions[currentQuestionIndex].image}
+                        src={getImageUrl(filteredQuestions[currentQuestionIndex].image)} 
+                        alt="Pregunta" 
+                        className="w-full h-full object-contain block"
+                        onError={() => handleImageError(filteredQuestions[currentQuestionIndex].image!)}
+                      />
+                    )}
                   </div>
                 )}
                 <h2 className="text-2xl md:text-3xl font-serif leading-tight">

@@ -422,9 +422,9 @@ export default function App() {
                 {filteredQuestions[currentQuestionIndex].image && (
                   <div className="w-full aspect-video rounded-2xl overflow-hidden shadow-md border-4 border-white bg-slate-200 flex items-center justify-center relative">
                     <img 
-                      src={`/${filteredQuestions[currentQuestionIndex].image}`} 
+                      src={filteredQuestions[currentQuestionIndex].image} 
                       alt="Pregunta" 
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       referrerPolicy="no-referrer"
                     />
                   </div>
